@@ -1,0 +1,6 @@
+db:
+  user: "root"
+  password: "110214"
+  url: "127.0.0.1:3306"
+  dbname: "deepseek"
+  dsn: "root:xxxxxxxxx@tcp(127.0.0.1:3306)/deepseek?charset=utf8mb4&parseTime=True&loc=Local"

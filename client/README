@@ -2,3 +2,6 @@
 // TODO: 接入db 存储上下文
 // TODO: 使用ebiten制作桌面版
 // TODO: 抽离代码分出server层和对外界面的v层
+
+# 启动
+在config.yaml中配置自己的数据库

@@ -1,8 +1,9 @@
-package main
+package service
 
 import (
 	"bufio"
 	"bytes"
+	"dp_client/global"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -76,7 +77,7 @@ type GenChunkResponse struct {
 func createGenReq() *http.Request {
 	// 定义请求的参数
 	reqParam := GenReq{
-		Model:  MODEL_NAME,
+		Model:  global.MODEL_NAME,
 		Prompt: "who are you ",
 		Stream: true,
 	}
@@ -88,7 +89,7 @@ func createGenReq() *http.Request {
 	}
 
 	// 创建一个 POST 请求
-	req, err := http.NewRequest("POST", GEN_URL, bytes.NewBuffer(jsonData))
+	req, err := http.NewRequest("POST", global.GEN_URL, bytes.NewBuffer(jsonData))
 	if err != nil {
 		fmt.Println("Error creating request:", err)
 		return nil

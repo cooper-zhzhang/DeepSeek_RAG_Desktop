@@ -2,12 +2,13 @@ package global
 
 import (
 	"context"
-	"github.com/google/uuid"
 	"log/slog"
 	"os"
+
+	"github.com/google/uuid"
 )
 
-var SlogLogger *slog.Logger
+var Slog *slog.Logger
 
 const LogIdKey = "logId"
 
@@ -27,7 +28,7 @@ func (h *ContextHandler) Handle(ctx context.Context, record slog.Record) error {
 
 func createGlobalLog() *slog.Logger {
 	textHandler := slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.LevelDebug,
+		Level: slog.LevelError,
 	})
 	// 创建一个自定义的ContextHandler
 	contextHandler := &ContextHandler{Handler: textHandler}
@@ -53,5 +54,5 @@ func CreateLogContextByLogId(ctx context.Context, logId string) context.Context 
 }
 
 func init() {
-	SlogLogger = createGlobalLog()
+	Slog = createGlobalLog()
 }
