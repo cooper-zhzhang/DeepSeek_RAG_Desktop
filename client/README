@@ -1,0 +1,4 @@
+// TODO: 接入 rag和lang chain
+// TODO: 接入db 存储上下文
+// TODO: 使用ebiten制作桌面版
+// TODO: 抽离代码分出server层和对外界面的v层
