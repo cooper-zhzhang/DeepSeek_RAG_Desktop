@@ -6,7 +6,7 @@ import (
 
 var DBViper *viper.Viper
 
-func init() {
+func initViper() {
 	// 设置配置文件的名称和路径
 	viper.SetConfigName("config")   // 配置文件名称（不包含扩展名）
 	viper.SetConfigType("yaml")     // 指定配置文件格式为 YAML

@@ -21,7 +21,7 @@ func NewMessageStorage(ctx context.Context) *MessageStorage {
 
 func (storage *MessageStorage) QueryMessages(conversationId uint64, limit int) (messages []*model.Message, err error) {
 
-	messages, err = query.Message.WithContext(storage.ctx).Debug().
+	messages, err = query.Message.WithContext(storage.ctx).
 		Where(query.Message.ConversationId.Eq(conversationId)).Limit(limit).Order(query.Message.CreatedAt.Desc()).Find()
 
 	if err != nil {

@@ -16,16 +16,31 @@ const LogIdKey = "logId"
 
 // ContextHandler log handler的实现
 type ContextHandler struct {
-	slog.Handler
+	handler slog.Handler
+}
+
+func (h *ContextHandler) Enabled(ctx context.Context, level slog.Level) bool {
+	return h.handler.Enabled(ctx, level)
 }
 
 func (h *ContextHandler) Handle(ctx context.Context, record slog.Record) error {
-	// 从context中获取logId
+	// 添加 log ID
 	if logId, ok := ctx.Value(LogIdKey).(string); ok {
 		record.Add(LogIdKey, logId)
 	}
+	return h.handler.Handle(ctx, record)
+}
 
-	return slog.Default().Handler().Handle(ctx, record)
+func (h *ContextHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	return &ContextHandler{handler: h.handler.WithAttrs(attrs)}
+}
+
+func (h *ContextHandler) WithGroup(name string) slog.Handler {
+	return &ContextHandler{handler: h.handler.WithGroup(name)}
+}
+
+func NewContextHandler(handler slog.Handler) slog.Handler {
+	return &ContextHandler{handler: handler}
 }
 
 func getLogLevel() slog.Level {
@@ -42,16 +57,25 @@ func getLogLevel() slog.Level {
 }
 
 func createGlobalLog() *slog.Logger {
-	textHandler := slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-		Level: getLogLevel(),
+
+	baseHandler := slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		AddSource: true, // 添加源文件和行号
+		Level:     getLogLevel(),
 	})
-	//viper.GetInt("log.log_level"),
 
-	// 创建一个自定义的ContextHandler
-	contextHandler := &ContextHandler{Handler: textHandler}
+	// 添加自定义处理器
+	handler := NewContextHandler(baseHandler)
+	logger := slog.New(handler)
+	/*
+		textHandler := slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+			AddSource: true,
+			Level:     getLogLevel(),
+		})
+		// 创建一个自定义的ContextHandler
+		contextHandler := &ContextHandler{Handler: textHandler}
 
-	// 创建一个Logger
-	logger := slog.New(contextHandler)
+		// 创建一个Logger
+		logger = slog.New(contextHandler)*/
 	return logger
 }
 
@@ -70,6 +94,6 @@ func CreateLogContextByLogId(ctx context.Context, logId string) context.Context 
 	return context.WithValue(ctx, LogIdKey, logId)
 }
 
-func init() {
+func initLog() {
 	Slog = createGlobalLog()
 }

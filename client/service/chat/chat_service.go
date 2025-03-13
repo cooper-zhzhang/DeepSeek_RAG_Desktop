@@ -102,12 +102,12 @@ func parseChatChunk(ctx context.Context, line string) *ChatChunkResp {
 	var chunk *ChatChunkResp
 	err := json.Unmarshal([]byte(line), &chunk)
 	if err != nil {
-		fmt.Println("Error parsing JSON:", err)
+		global.Slog.ErrorContext(ctx, "Unmarshal ChatChunkResp failed", slog.Any("err", err))
 		return nil
 	}
 
 	if len(chunk.Error) != 0 {
-		global.Slog.ErrorContext(ctx, "Error parsing JSON:", err)
+		global.Slog.ErrorContext(ctx, "Error parsing JSON:", slog.Any("err", chunk.Error))
 		return nil
 	}
 

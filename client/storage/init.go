@@ -19,9 +19,11 @@ func init() {
 	if err != nil {
 		panic("failed to connect database")
 	}
-	err = db.AutoMigrate(&model.Agent{}, &model.Conversation{}, &model.Message{})
+	err = db.AutoMigrate(&model.Agent{}, &model.Conversation{}, &model.Message{}, &model.Agent{})
 	if err != nil {
 		panic("failed to migrate database")
 	}
 	query.SetDefault(db)
 }
+
+// TODO storage 层全部做成单例

@@ -25,7 +25,7 @@ func main() {
 	g.ApplyBasic(model.Agent{}, model.Conversation{}, model.Message{})
 
 	// Generate Type Safe API with Dynamic SQL defined on Querier interface for `model.User` and `model.Company`
-	g.ApplyInterface(func(Querier) {}, model.Agent{}, model.Conversation{}, model.Message{})
+	g.ApplyInterface(func(Querier) {}, model.Agent{}, model.Conversation{}, model.Message{}, model.Agent{})
 
 	// Generate the code
 	g.Execute()

@@ -22,7 +22,22 @@ func NewConversationStorage(ctx context.Context) *ConversationStorage {
 	}
 }
 
-func (storage *ConversationStorage) QueryConversationById(id int64) (conversation *model.Conversation, err error) {
+func (storage *ConversationStorage) Create(agentId uint64, uid string) (uint64, error) {
+	conversation := &model.Conversation{
+		AgentId:         int64(agentId),
+		ConversationUId: uid,
+	}
+
+	err := query.Conversation.WithContext(storage.ctx).Create(conversation)
+	if err != nil {
+		global.Slog.ErrorContext(storage.ctx, "CreateConversation failed ", slog.Any("err", err))
+		return 0, err
+	}
+
+	return uint64(conversation.ID), nil
+}
+
+func (storage *ConversationStorage) QueryConversationById(id uint64) (conversation *model.Conversation, err error) {
 	conversation, err = query.Conversation.WithContext(storage.ctx).Debug().Where(query.Conversation.ID.Eq(uint(id))).First()
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil
