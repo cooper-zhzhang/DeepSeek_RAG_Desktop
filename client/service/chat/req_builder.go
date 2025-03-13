@@ -6,6 +6,8 @@ import (
 	"dp_client/storage"
 	"dp_client/storage/model"
 	"log/slog"
+
+	"github.com/spf13/viper"
 )
 
 type ReqParamBuilder struct {
@@ -31,7 +33,7 @@ type ChatReqParam struct {
 
 func (receiver *ReqParamBuilder) buildChatMessage(question string, prompt string) (retMessage []*ChatMessage) {
 
-	message, err := storage.NewMessageStorage(receiver.ctx).QueryMessages(receiver.ConversationId, 10)
+	message, err := storage.NewMessageStorage(receiver.ctx).QueryMessages(receiver.ConversationId, viper.GetInt("llm_context.max_limit"))
 	if err != nil {
 		global.Slog.Error("QueryMessages failed", slog.Any("err", err))
 		return nil
@@ -54,13 +56,14 @@ func (receiver *ReqParamBuilder) buildChatMessage(question string, prompt string
 	return retMessage
 }
 
+// convertMessageModel2ChatMessage 需要翻转
 func convertMessageModel2ChatMessage(message []*model.Message) []*ChatMessage {
-
 	ret := make([]*ChatMessage, 0, len(message))
-	for _, m := range message {
+	n := len(message)
+	for i := 0; i < n; i++ {
 		ret = append(ret, &ChatMessage{
-			Role:    m.Role,
-			Content: m.Content,
+			Role:    message[n-i-1].Role,
+			Content: message[n-i-1].Content,
 		})
 	}
 

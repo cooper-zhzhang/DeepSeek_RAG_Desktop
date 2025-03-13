@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"os"
 
+	"github.com/spf13/viper"
+
 	"github.com/google/uuid"
 )
 
@@ -26,10 +28,25 @@ func (h *ContextHandler) Handle(ctx context.Context, record slog.Record) error {
 	return slog.Default().Handler().Handle(ctx, record)
 }
 
+func getLogLevel() slog.Level {
+	switch viper.GetString("log.log_level") {
+	case "DEBUG":
+		return slog.LevelDebug
+	case "WARN":
+		return slog.LevelWarn
+	case "INFO":
+		return slog.LevelInfo
+	default: //"ERROR"
+		return slog.LevelError
+	}
+}
+
 func createGlobalLog() *slog.Logger {
 	textHandler := slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.LevelError,
+		Level: getLogLevel(),
 	})
+	//viper.GetInt("log.log_level"),
+
 	// 创建一个自定义的ContextHandler
 	contextHandler := &ContextHandler{Handler: textHandler}
 

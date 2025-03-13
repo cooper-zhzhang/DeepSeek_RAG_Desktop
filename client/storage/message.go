@@ -22,7 +22,7 @@ func NewMessageStorage(ctx context.Context) *MessageStorage {
 func (storage *MessageStorage) QueryMessages(conversationId uint64, limit int) (messages []*model.Message, err error) {
 
 	messages, err = query.Message.WithContext(storage.ctx).Debug().
-		Where(query.Message.ConversationId.Eq(conversationId)).Limit(limit).Order(query.Message.CreatedAt.Asc()).Find()
+		Where(query.Message.ConversationId.Eq(conversationId)).Limit(limit).Order(query.Message.CreatedAt.Desc()).Find()
 
 	if err != nil {
 		global.Slog.Error("QueryMessages failed", slog.Any("err", err))
@@ -39,7 +39,7 @@ func (storage *MessageStorage) CreateMessage(message *model.Message) (err error)
 		return
 	}
 
-	err = query.Message.WithContext(storage.ctx).Debug().Create(message)
+	err = query.Message.WithContext(storage.ctx).Create(message)
 	if err != nil {
 		global.Slog.ErrorContext(storage.ctx, "CreateMessage failed ", slog.Any("err", err))
 		return
