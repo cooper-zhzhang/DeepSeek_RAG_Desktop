@@ -9,6 +9,7 @@ import (
 	"dp_client/storage/model"
 	"encoding/json"
 	"fmt"
+
 	"io"
 	"log/slog"
 	"net/http"
@@ -57,13 +58,13 @@ func (receiver *ChatService) CreateHttpReq(ctx context.Context, content string) 
 	req := NewReqParamBuilder(ctx, global.MODEL_NAME, receiver.conversationId).
 		buildReq(content, "你扮演一个回答问题的机器人，使用很热情的语句回答问题,尽量使用中文")
 
+	global.Slog.DebugContext(ctx, "req", slog.Any("req", req))
+
 	jsonData, err := json.Marshal(req)
 	if err != nil {
 		global.Slog.ErrorContext(ctx, "json.Marshal failed", slog.Any("err", err))
 		return nil
 	}
-
-	global.Slog.InfoContext(ctx, "req", slog.Any("req", jsonData))
 
 	// 创建一个 POST 请求
 	httpReq, err := http.NewRequest("POST", receiver.url, bytes.NewBuffer(jsonData))
@@ -168,7 +169,7 @@ func (receiver *ChatService) readChatStreamBody(ctx context.Context, body io.Rea
 			} else {
 				fmt.Println()
 			}
-			global.Slog.InfoContext(ctx, "chat resp", slog.Any("last chunk", chunk))
+			global.Slog.DebugContext(ctx, "chat resp", slog.Any("last chunk", chunk))
 		}
 	}
 

@@ -4,4 +4,4 @@ llm_service:
 llm_context:
   max_limit: 100
 log:
-  log_level: "DEBUG"
+  log_level: "INFO"

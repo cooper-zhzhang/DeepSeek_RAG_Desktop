@@ -58,7 +58,7 @@ func getLogLevel() slog.Level {
 
 func createGlobalLog() *slog.Logger {
 
-	baseHandler := slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+	baseHandler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		AddSource: true, // 添加源文件和行号
 		Level:     getLogLevel(),
 	})
@@ -66,16 +66,6 @@ func createGlobalLog() *slog.Logger {
 	// 添加自定义处理器
 	handler := NewContextHandler(baseHandler)
 	logger := slog.New(handler)
-	/*
-		textHandler := slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-			AddSource: true,
-			Level:     getLogLevel(),
-		})
-		// 创建一个自定义的ContextHandler
-		contextHandler := &ContextHandler{Handler: textHandler}
-
-		// 创建一个Logger
-		logger = slog.New(contextHandler)*/
 	return logger
 }
 
@@ -89,8 +79,12 @@ func NewLogId() string {
 func CreateLogContextByLogId(ctx context.Context, logId string) context.Context {
 	if ctx == nil {
 		ctx = context.Background()
+	} else {
+		if _, ok := ctx.Value(LogIdKey).(string); ok {
+			return ctx
+		}
 	}
-	// TODO:判断是否已经有logId
+
 	return context.WithValue(ctx, LogIdKey, logId)
 }
 
