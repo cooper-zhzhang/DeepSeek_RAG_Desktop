@@ -41,7 +41,23 @@ func (storage *MessageStorage) CreateMessage(message *model.Message) (err error)
 
 	err = query.Message.WithContext(storage.ctx).Create(message)
 	if err != nil {
-		global.Slog.ErrorContext(storage.ctx, "CreateMessage failed ", slog.Any("err", err))
+		global.Slog.ErrorContext(storage.ctx, "CreateAgent failed ", slog.Any("err", err))
+		return
+	}
+
+	return
+}
+
+func (storage *MessageStorage) CreateMessages(messages []*model.Message) (err error) {
+
+	if len(messages) == 0 {
+		err = errors.New("message is nil")
+		return
+	}
+
+	err = query.Message.WithContext(storage.ctx).Create(messages...)
+	if err != nil {
+		global.Slog.ErrorContext(storage.ctx, "CreateAgent failed ", slog.Any("err", err))
 		return
 	}
 

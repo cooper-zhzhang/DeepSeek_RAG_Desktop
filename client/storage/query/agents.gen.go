@@ -28,9 +28,10 @@ func newAgent(db *gorm.DB, opts ...gen.DOOption) agent {
 
 	tableName := _agent.agentDo.TableName()
 	_agent.ALL = field.NewAsterisk(tableName)
-	_agent.ConversationId = field.NewInt64(tableName, "conversation_id")
+	_agent.ConversationId = field.NewUint64(tableName, "conversation_id")
 	_agent.LLMModelName = field.NewString(tableName, "llm_model_name")
 	_agent.Prompt = field.NewString(tableName, "prompt")
+	_agent.DatasetID = field.NewUint64(tableName, "dataset_id")
 	_agent.ID = field.NewUint(tableName, "id")
 	_agent.CreatedAt = field.NewTime(tableName, "created_at")
 	_agent.UpdatedAt = field.NewTime(tableName, "updated_at")
@@ -45,9 +46,10 @@ type agent struct {
 	agentDo
 
 	ALL            field.Asterisk
-	ConversationId field.Int64
+	ConversationId field.Uint64
 	LLMModelName   field.String
 	Prompt         field.String
+	DatasetID      field.Uint64
 	ID             field.Uint
 	CreatedAt      field.Time
 	UpdatedAt      field.Time
@@ -68,9 +70,10 @@ func (a agent) As(alias string) *agent {
 
 func (a *agent) updateTableName(table string) *agent {
 	a.ALL = field.NewAsterisk(table)
-	a.ConversationId = field.NewInt64(table, "conversation_id")
+	a.ConversationId = field.NewUint64(table, "conversation_id")
 	a.LLMModelName = field.NewString(table, "llm_model_name")
 	a.Prompt = field.NewString(table, "prompt")
+	a.DatasetID = field.NewUint64(table, "dataset_id")
 	a.ID = field.NewUint(table, "id")
 	a.CreatedAt = field.NewTime(table, "created_at")
 	a.UpdatedAt = field.NewTime(table, "updated_at")
@@ -91,10 +94,11 @@ func (a *agent) GetFieldByName(fieldName string) (field.OrderExpr, bool) {
 }
 
 func (a *agent) fillFieldMap() {
-	a.fieldMap = make(map[string]field.Expr, 7)
+	a.fieldMap = make(map[string]field.Expr, 8)
 	a.fieldMap["conversation_id"] = a.ConversationId
 	a.fieldMap["llm_model_name"] = a.LLMModelName
 	a.fieldMap["prompt"] = a.Prompt
+	a.fieldMap["dataset_id"] = a.DatasetID
 	a.fieldMap["id"] = a.ID
 	a.fieldMap["created_at"] = a.CreatedAt
 	a.fieldMap["updated_at"] = a.UpdatedAt

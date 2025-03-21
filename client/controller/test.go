@@ -36,30 +36,32 @@ func (receiver *TestConsole) CallByLLM(ctx context.Context) {
 
 func (receiver *TestConsole) RAG(ctx context.Context) {
 
-	input := "小明做什么的"
 	fileService, _ := document.NewFileService(ctx, document.TextFileType, "text.txt")
-	docs, err := fileService.TextToChunks(ctx)
+	agent := service.NewAgentService()
+	err := agent.CreateAgent(ctx, global.MODEL_NAME,
+		"你扮演一个回答问题的机器人，使用很热情的语句回答问题,尽量使用中文", 10003)
 	if err != nil {
-		global.Slog.Error("TextToChunks failed", slog.Any("err", err))
+		global.Slog.Error("CreateAgent failed", slog.Any("err", err))
 		return
 	}
-	/*
-		err = fileService.StoreDocs(ctx, docs)
+
+	for {
+		var input string
+		fmt.Println("请输入您的问题：>")
+		fmt.Scan(&input)
+		ctx = global.CreateLogContextByLogId(nil, global.NewLogId())
+		docs, err := fileService.UseRetriever(ctx, input, 10)
 		if err != nil {
-			global.Slog.Error("StoreDocs failed", slog.Any("err", err))
+			global.Slog.Error("UseRetriever failed", slog.Any("err", err))
 			return
-		}*/
+		}
 
-	docs, err = fileService.UseRetriever(ctx, input, 10)
-	if err != nil {
-		global.Slog.Error("UseRetriever failed", slog.Any("err", err))
-		return
+		result, err := agent.Chat(ctx, input, docs)
+		if err != nil {
+			global.Slog.Error("GetAnswer failed", slog.Any("err", err))
+			return
+		}
+		fmt.Println(result)
 	}
 
-	result, err := service.GetAnswer(ctx, ollama_agent.GetLLMClient(ollama_agent.DEEP_SEEK_MODEL_7), docs, input)
-	if err != nil {
-		global.Slog.Error("GetAnswer failed", slog.Any("err", err))
-		return
-	}
-	fmt.Println(result)
 }

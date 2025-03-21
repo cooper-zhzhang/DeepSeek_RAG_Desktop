@@ -66,6 +66,10 @@ func NewFileService(ctx context.Context, fileType FileType, filePath string) (IF
 		return nil, errors.New("file type err")
 	}
 
+	if len(filePath) == 0 {
+		return file, nil
+	}
+
 	return file, file.OpenFile(ctx)
 }
 

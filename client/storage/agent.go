@@ -21,7 +21,7 @@ func NewAgentStorage(ctx context.Context) *AgentStorage {
 	}
 }
 
-func (storage *AgentStorage) CreateMessage(agent *model.Agent) (err error) {
+func (storage *AgentStorage) CreateAgent(agent *model.Agent) (err error) {
 	if agent == nil {
 		err = errors.New("agent is nil")
 		return
@@ -29,7 +29,7 @@ func (storage *AgentStorage) CreateMessage(agent *model.Agent) (err error) {
 
 	err = query.Agent.Create(agent)
 	if err != nil {
-		global.Slog.ErrorContext(storage.ctx, "CreateMessage failed ", slog.Any("err", err))
+		global.Slog.ErrorContext(storage.ctx, "CreateAgent failed ", slog.Any("err", err))
 		return
 	}
 	return

@@ -4,9 +4,13 @@ import (
 	"context"
 	"dp_client/global"
 	"dp_client/service/ollama_agent"
+	inn_prompts "dp_client/service/prompts"
 	"dp_client/storage"
 	"dp_client/storage/model"
+	"fmt"
 	"log/slog"
+
+	"github.com/spf13/viper"
 
 	"github.com/tmc/langchaingo/prompts"
 
@@ -41,14 +45,20 @@ func (receiver *AgentService) GetAgent(ctx context.Context, id uint64) (bool, er
 	return false, nil
 }
 
-func (receiver *AgentService) CreateAgent(ctx context.Context, LLMModelName string, Prompt string) error {
+func (receiver *AgentService) SetDataset(ctx context.Context, datasetId uint64) error {
+
+	return nil
+}
+
+func (receiver *AgentService) CreateAgent(ctx context.Context, LLMModelName string, Prompt string, conversationId uint64) error {
 	agentModel := model.Agent{
-		LLMModelName: LLMModelName,
-		Prompt:       Prompt,
+		LLMModelName:   LLMModelName,
+		Prompt:         Prompt,
+		ConversationId: conversationId,
 	}
 
-	if err := storage.NewAgentStorage(ctx).CreateMessage(&agentModel); err != nil {
-		global.Slog.Error("CreateMessage failed", slog.Any("err", err))
+	if err := storage.NewAgentStorage(ctx).CreateAgent(&agentModel); err != nil {
+		global.Slog.Error("CreateAgent failed", slog.Any("err", err))
 		return err
 	}
 
@@ -78,36 +88,60 @@ func (receiver *AgentService) GetConversation(ctx context.Context) bool {
 	}
 
 	return true
-}
-
-func (receiver *AgentService) Chat(ctx context.Context, content string) {
 
 }
 
-func GetAnswer(ctx context.Context, llm llms.Model, docRetrieved []schema.Document, input string) (string, error) {
+func (receiver *AgentService) buildMessageHistory(ctx context.Context, docRetrieved []schema.Document) (*memory.ChatMessageHistory, error) {
+	message, err := storage.NewMessageStorage(ctx).QueryMessages(receiver.AgentModel.ConversationId,
+		viper.GetInt("llm_context.max_limit"))
+
+	if err != nil {
+		global.Slog.Error("QueryMessages failed", slog.Any("err", err))
+		return nil, err
+	}
 
 	// 创建一个新的聊天消息历史记录
 	history := memory.NewChatMessageHistory()
 	// 将检索到的文档添加到历史记录中
 	for _, doc := range docRetrieved {
-		history.AddAIMessage(ctx, doc.PageContent)
+		//ChatMessageTypeSystem
+		mes := llms.SystemChatMessage{
+			Content: doc.PageContent,
+		}
+		history.AddMessage(ctx, mes)
 	}
-	// 使用历史记录创建一个新的对话缓冲区
+
+	for i := len(message) - 1; i > 0; i-- {
+		doc := message[i]
+		//目前deepseek只有 两种角色，human 和 ai
+		if doc.Role == string(model.RoleHuman) {
+			history.AddUserMessage(ctx, doc.Content)
+		} else {
+			history.AddAIMessage(ctx, doc.Content)
+		}
+	}
+
+	return history, nil
+}
+
+func (receiver *AgentService) retrieved(input string) {
+	// TODO:实现从向量数据库中检索
+
+	//receiver.AgentModel.DatasetID
+
+}
+
+func (receiver *AgentService) Chat(ctx context.Context, input string, docRetrieved []schema.Document) (response string, err error) {
+
+	history, err := receiver.buildMessageHistory(ctx, docRetrieved)
+	if err != nil {
+		global.Slog.Error("buildMessageHistory failed", slog.Any("err", err))
+		return "", err
+	}
 	conversation := memory.NewConversationBuffer(memory.WithChatHistory(history))
-
-	promptPrefix := `
-	你是问答机器人，回答用户的问题
-	\n\n
-	`
-	promptSuffix := `
-	Begin!
-	Chat History:
-	{{.history}}
-	Follow Up Input: {{.input}}
-	Standalone question:`
-
+	// TODO: 放在 prompts文件夹下
 	Prompt := prompts.PromptTemplate{
-		Template:       promptPrefix + promptSuffix,
+		Template:       receiver.AgentModel.Prompt + inn_prompts.DefaultPromptSuffix,
 		TemplateFormat: prompts.TemplateFormatGoTemplate,
 		InputVariables: []string{"input", "agent_scratchpad"},
 		PartialVariables: map[string]any{
@@ -115,6 +149,7 @@ func GetAnswer(ctx context.Context, llm llms.Model, docRetrieved []schema.Docume
 		},
 	}
 
+	llm := ollama_agent.GetLLMClient(ollama_agent.LLMName(receiver.AgentModel.LLMModelName))
 	executor := agents.NewExecutor(
 		agents.NewConversationalAgent(llm, nil,
 			agents.WithCallbacksHandler(ollama_agent.GetLLMCallBackHandler()),
@@ -125,11 +160,43 @@ func GetAnswer(ctx context.Context, llm llms.Model, docRetrieved []schema.Docume
 	// 设置链调用选项
 	options := []chains.ChainCallOption{
 		chains.WithTemperature(0.8),
+		chains.WithStreamingFunc(func(ctx context.Context, chunk []byte) error {
+			fmt.Println(string(chunk))
+			return nil
+		}),
 	}
-	res, err := chains.Run(ctx, executor, input, options...)
+	response, err = chains.Run(ctx, executor, input, options...)
 	if err != nil {
+		global.Slog.ErrorContext(ctx, "chains.Run failed", slog.Any("err", err))
 		return "", err
 	}
 
-	return res, nil
+	err = receiver.RecordMessage(ctx, input, response)
+	if err != nil {
+		global.Slog.ErrorContext(ctx, "RecordMessage failed", slog.Any("err", err))
+		return "", err
+	}
+
+	return response, nil
+}
+
+func (receiver *AgentService) RecordMessage(ctx context.Context, request, response string) error {
+	var messages []*model.Message
+	messages = append(messages, &model.Message{
+		Content:        request,
+		Role:           string(model.RoleHuman),
+		ConversationId: receiver.AgentModel.ConversationId,
+	}, &model.Message{
+		Content:        response,
+		Role:           string(model.RoleAI),
+		ConversationId: receiver.AgentModel.ConversationId,
+	})
+
+	err := storage.NewMessageStorage(ctx).CreateMessages(messages)
+	if err != nil {
+		global.Slog.ErrorContext(ctx, "insertMessage failed", slog.Any("err", err))
+		return err
+	}
+
+	return nil
 }

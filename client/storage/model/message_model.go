@@ -13,3 +13,11 @@ type Message struct {
 	gorm.Model
 	CreatedAt time.Time `gorm:"index:conv_id_created_at"`
 }
+
+type RoleType string
+
+const (
+	RoleHuman  RoleType = "human"
+	RoleAI     RoleType = "ai"
+	RoleSystem RoleType = "system"
+)

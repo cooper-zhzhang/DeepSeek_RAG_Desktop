@@ -1,4 +1,4 @@
 package document
 
-type DataSetService struct {
+type DatasetService struct {
 }
