@@ -5,3 +5,7 @@ llm_context:
   max_limit: 100
 log:
   log_level: "INFO"
+
+qdrant:
+  url: "http://localhost:6333"
+  collection: "ollama_rag"

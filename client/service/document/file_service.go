@@ -3,17 +3,21 @@ package document
 import (
 	"context"
 	"dp_client/global"
+	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 
 	"github.com/tmc/langchaingo/vectorstores"
 
-	"github.com/tmc/langchaingo/vectorstores/qdrant"
-
 	"github.com/tmc/langchaingo/documentloaders"
 	"github.com/tmc/langchaingo/schema"
 	"github.com/tmc/langchaingo/textsplitter"
 )
+
+//IFileService针对一个文件的处理
+// DocumentService是一个dataset的概念
+//DocumentService 一个文档的集合，可以理解为dataset， 包含多个文件
 
 type FileType int16
 
@@ -21,43 +25,153 @@ const NullFileType FileType = 0
 const TextFileType FileType = 1
 const PDFFileType FileType = 2
 
-type FileService struct {
-	fileType FileType
-	filePath string
+type IFileService interface {
+	TextToChunks(ctx context.Context) ([]schema.Document, error)
+	OpenFile(ctx context.Context) error
+	CloseFile(ctx context.Context) error
+	SetSplitter(ctx context.Context, splitter *textsplitter.RecursiveCharacter)
+	StoreDocs(ctx context.Context, docs []schema.Document) error
+	UseRetriever(ctx context.Context, prompt string, topK int) ([]schema.Document, error)
 }
 
-func NewFileService() *FileService {
-	return &FileService{}
+type FileService struct {
+	IFileService
+	FileType   FileType
+	FilePath   string
+	FileHandle *os.File
+	Splitter   *textsplitter.RecursiveCharacter
+	SchemaDocs []schema.Document
+}
+
+func NewFileService(ctx context.Context, fileType FileType, filePath string) (IFileService, error) {
+	var file IFileService
+	switch fileType {
+	case TextFileType:
+		file = &TextFile{
+			FileService: FileService{
+				FilePath: filePath,
+				FileType: fileType,
+				Splitter: GetDefaultTextSplitter(),
+			},
+		}
+	case PDFFileType:
+		file = &PDFFile{
+			FileService{
+				FilePath: filePath,
+				FileType: fileType,
+				Splitter: GetDefaultPDFSplitter(),
+			},
+		}
+	default:
+		return nil, errors.New("file type err")
+	}
+
+	return file, file.OpenFile(ctx)
 }
 
 type TextFile struct {
+	FileService
 }
 
 type PDFFile struct {
+	FileService
 }
 
-func (receiver *FileService) TextToChunks(ctx context.Context, filePath string) ([]schema.Document, error) {
-	file, err := os.Open(filePath)
+func (receiver *FileService) OpenFile(ctx context.Context) (err error) {
+	receiver.FileHandle, err = os.Open(receiver.FilePath)
 	if err != nil {
-		global.Slog.Error("Open file failed", slog.Any("err", err))
+		global.Slog.ErrorContext(ctx, "Open file failed", slog.Any("err", err))
+		return err
+	}
+
+	return nil
+}
+
+func (receiver *FileService) CloseFile(ctx context.Context) error {
+	if receiver.FileHandle != nil {
+		return receiver.FileHandle.Close()
+	}
+	return nil
+}
+
+func (receiver *FileService) DoAllThing(ctx context.Context) (err error) {
+	err = receiver.OpenFile(ctx)
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		err := receiver.CloseFile(ctx)
+		if err != nil {
+			global.Slog.ErrorContext(ctx, "Close file failed", slog.Any("err", err))
+		}
+	}()
+
+	_, err = receiver.TextToChunks(ctx)
+	if err != nil {
+		global.Slog.ErrorContext(ctx, "TextToChunks failed", slog.Any("err", err))
+		return err
+	}
+	err = receiver.StoreDocs(ctx, receiver.SchemaDocs)
+	if err != nil {
+		global.Slog.ErrorContext(ctx, "StoreDocs failed", slog.Any("err", err))
+		return err
+	}
+
+	docs, err := receiver.UseRetriever(ctx, "小明干什么的", 10)
+	if err != nil {
+		global.Slog.ErrorContext(ctx, "useRetriever failed", slog.Any("err", err))
+		return err
+	}
+
+	fmt.Println(docs)
+
+	return nil
+}
+
+func (receiver *FileService) TextToChunks(ctx context.Context) ([]schema.Document, error) {
+	return nil, errors.New("need imple")
+}
+
+func (receiver *PDFFile) TextToChunks(ctx context.Context) ([]schema.Document, error) {
+	fileInfo, err := receiver.FileHandle.Stat()
+	if err != nil {
+		global.Slog.Error("Get file info failed", slog.Any("err", err))
 		return nil, err
 	}
 
-	docLoaded := documentloaders.NewText(file)
-	split := textsplitter.NewRecursiveCharacter()
-	split.ChunkSize = 10000
-	split.ChunkOverlap = 100
+	fileSize := fileInfo.Size()
+	docLoaded := documentloaders.NewPDF(receiver.FileHandle, fileSize)
+	split := receiver.getSplitter(ctx)
 	docs, err := docLoaded.LoadAndSplit(ctx, split)
 	if err != nil {
 		global.Slog.Error("Load and split file failed", slog.Any("err", err))
 		return nil, err
 	}
+
+	receiver.SchemaDocs = docs
 	return docs, nil
 }
 
-func (receiver *FileService) storeDocs(ctx context.Context, docs []schema.Document, store *qdrant.Store) error {
+func (receiver *TextFile) TextToChunks(ctx context.Context) ([]schema.Document, error) {
+	docLoaded := documentloaders.NewText(receiver.FileHandle)
+	split := receiver.getSplitter(ctx)
+	docs, err := docLoaded.LoadAndSplit(ctx, split)
+	if err != nil {
+		global.Slog.Error("Load and split file failed", slog.Any("err", err))
+		return nil, err
+	}
+
+	receiver.SchemaDocs = docs
+	return docs, nil
+}
+
+func (receiver *FileService) StoreDocs(ctx context.Context, docs []schema.Document) error {
+	if len(docs) <= 0 {
+		docs = receiver.SchemaDocs
+	}
 	if len(docs) > 0 {
-		_, err := store.AddDocuments(ctx, docs)
+		_, err := GlobalQdrantStore.AddDocuments(ctx, docs)
 		if err != nil {
 			global.Slog.ErrorContext(ctx, "AddDocuments failed", slog.Any("err", err))
 			return err
@@ -67,13 +181,13 @@ func (receiver *FileService) storeDocs(ctx context.Context, docs []schema.Docume
 	return nil
 }
 
-func (receiver *FileService) useRetriever(ctx context.Context, store *qdrant.Store, prompt string, topK int) ([]schema.Document, error) {
+func (receiver *FileService) UseRetriever(ctx context.Context, prompt string, topK int) ([]schema.Document, error) {
 
 	optionsVector := []vectorstores.Option{
 		vectorstores.WithScoreThreshold(0.80),
 	}
 
-	retriever := vectorstores.ToRetriever(store, topK, optionsVector...)
+	retriever := vectorstores.ToRetriever(GlobalQdrantStore, topK, optionsVector...)
 
 	doRetriever, err := retriever.GetRelevantDocuments(ctx, prompt)
 	if err != nil {
@@ -83,34 +197,19 @@ func (receiver *FileService) useRetriever(ctx context.Context, store *qdrant.Sto
 
 	return doRetriever, nil
 }
+func (receiver *FileService) SetSplitter(ctx context.Context, splitter *textsplitter.RecursiveCharacter) {
 
-/*
-func GetAnswer(ctx context.Context, llm llms.Model, docRetrieved []schema.Document, input string) (string, error) {
-
-	// 创建一个新的聊天消息历史记录
-	history := memory.NewChatMessageHistory()
-	// 将检索到的文档添加到历史记录中
-	for _, doc := range docRetrieved {
-		history.AddAIMessage(ctx, doc.PageContent)
+	if splitter == nil {
+		global.Slog.WarnContext(ctx, "splitter is nil")
 	}
-	// 使用历史记录创建一个新的对话缓冲区
-	conversation := memory.NewConversationBuffer(memory.WithChatHistory(history))
+	receiver.Splitter = splitter
 
-	executor := agents.NewExecutor(
-		agents.NewConversationalAgent(llm, nil, agents.WithCallbacksHandler(ollama_agent.GetLLMCallBackHandler())),
-		//agents.WithOutputKey("text"),
-		agents.WithMemory(conversation),
-	)
-
-	// 设置链调用选项
-	options := []chains.ChainCallOption{
-		chains.WithTemperature(0.8),
-	}
-	res, err := chains.Run(ctx, executor, input, options...)
-	if err != nil {
-		return "", err
-	}
-
-	return res, nil
 }
-*/
+
+func (receiver *FileService) getSplitter(ctx context.Context) *textsplitter.RecursiveCharacter {
+	if receiver.Splitter == nil {
+		newSplitter := textsplitter.NewRecursiveCharacter()
+		receiver.Splitter = &newSplitter
+	}
+	return receiver.Splitter
+}

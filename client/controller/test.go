@@ -44,14 +44,28 @@ func (receiver *TestConsole) CallByLLM(ctx context.Context) {
 }
 
 func (receiver *TestConsole) RAG(ctx context.Context) {
-	fileService := document.NewFileService()
-	docs, err := fileService.TextToChunks(ctx, "text.txt")
+
+	input := "小明认识谁"
+	fileService, _ := document.NewFileService(ctx, document.TextFileType, "text.txt")
+	docs, err := fileService.TextToChunks(ctx)
 	if err != nil {
 		global.Slog.Error("TextToChunks failed", slog.Any("err", err))
 		return
 	}
 
-	result, err := service.GetAnswer(ctx, ollama_agent.GetLLMClient(ollama_agent.DEEP_SEEK_MODEL_7), docs, "小明认识谁")
+	err = fileService.StoreDocs(ctx, docs)
+	if err != nil {
+		global.Slog.Error("StoreDocs failed", slog.Any("err", err))
+		return
+	}
+
+	docs, err = fileService.UseRetriever(ctx, input, 10)
+	if err != nil {
+		global.Slog.Error("UseRetriever failed", slog.Any("err", err))
+		return
+	}
+
+	result, err := service.GetAnswer(ctx, ollama_agent.GetLLMClient(ollama_agent.DEEP_SEEK_MODEL_1_DOT_5), docs, input)
 	if err != nil {
 		global.Slog.Error("GetAnswer failed", slog.Any("err", err))
 		return

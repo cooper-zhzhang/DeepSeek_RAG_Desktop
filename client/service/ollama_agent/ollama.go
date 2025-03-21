@@ -12,6 +12,7 @@ const (
 	DEEP_SEEK_MODEL_7       LLMName = "deepseek-r1:7b"
 	DEEP_SEEK_MODEL_1_DOT_5 LLMName = "deepseek-r1:1.5b"
 	MXBAI_EMBED_LARGE       LLMName = "mxbai-embed-large"
+	NOMIC_EMBED_TEXT        LLMName = "nomic-embed-text:latest"
 )
 
 func GetLLMClient(modelName LLMName) *ollama.LLM {
@@ -23,6 +24,8 @@ func GetLLMClient(modelName LLMName) *ollama.LLM {
 		return deepSeek7BLLM
 	case MXBAI_EMBED_LARGE:
 		return maxbaiEmbedLarge
+	case NOMIC_EMBED_TEXT:
+		return nomicEmbedText
 	default:
 		return nil
 	}
@@ -31,6 +34,7 @@ func GetLLMClient(modelName LLMName) *ollama.LLM {
 var deepSeek1DOT5BLLM *ollama.LLM
 var deepSeek7BLLM *ollama.LLM
 var maxbaiEmbedLarge *ollama.LLM
+var nomicEmbedText *ollama.LLM
 
 func init() {
 	var err error
@@ -54,6 +58,14 @@ func init() {
 		ollama.WithModel(string(MXBAI_EMBED_LARGE)),
 		ollama.WithServerURL(global.OLLAMA_URL),
 	)
+	if err != nil {
+		panic(err)
+	}
+
+	nomicEmbedText, err = ollama.New(
+		ollama.WithModel(string(NOMIC_EMBED_TEXT)),
+		ollama.WithServerURL(global.OLLAMA_URL))
+
 	if err != nil {
 		panic(err)
 	}

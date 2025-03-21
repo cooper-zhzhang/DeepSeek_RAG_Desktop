@@ -11,6 +11,10 @@ import (
 )
 
 func init() {
+	mysqlInit()
+}
+
+func mysqlInit() {
 	// 从配置文件中读取值
 	dsn := global.DBViper.GetString("db.dsn")
 	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{

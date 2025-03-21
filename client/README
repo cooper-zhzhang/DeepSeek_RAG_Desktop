@@ -6,8 +6,18 @@
 # 启动
 在config.yaml中配置自己的数据库
 
-chromadb:存储向量数据
 qdrant:存储向量数据
+docker pull qdrant/qdrant
+docker run -itd --name qdrant -p 6333:6333 qdrant/qdrant
+curl -X PUT http://localhost:6333/collections/ollama_rag \
+-H 'Content-Type: application/json' \
+--data-raw '{
+    "vectors": {
+        "size": 768,
+        "distance": "Dot"
+    }
+}'
+
 LangChainGo: 引入库
 
 使用 LangChainGo的样例
