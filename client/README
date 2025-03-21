@@ -5,3 +5,10 @@
 
 # 启动
 在config.yaml中配置自己的数据库
+
+chromadb:存储向量数据
+qdrant:存储向量数据
+LangChainGo: 引入库
+
+使用 LangChainGo的样例
+https://blog.csdn.net/DEVELOPERAA/article/details/144817765
