@@ -13,10 +13,12 @@ curl -X PUT http://localhost:6333/collections/ollama_rag \
 -H 'Content-Type: application/json' \
 --data-raw '{
     "vectors": {
-        "size": 768,
+        "size": 1024,
         "distance": "Dot"
     }
 }'
+管理qdrant向量数据库
+http://localhost:6333/dashboard
 
 LangChainGo: 引入库
 

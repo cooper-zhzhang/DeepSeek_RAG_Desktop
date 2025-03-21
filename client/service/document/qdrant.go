@@ -32,7 +32,9 @@ func init() {
 }
 
 func LanguageToolEmbedded() *embeddings.EmbedderImpl {
-	llmEmbedded, err := embeddings.NewEmbedder(ollama_agent.GetLLMClient(ollama_agent.NOMIC_EMBED_TEXT))
+	//	MXBAI_EMBED_LARGE collections size=1024
+	// NOMIC_EMBED_TEXT collections size=768
+	llmEmbedded, err := embeddings.NewEmbedder(ollama_agent.GetLLMClient(ollama_agent.MXBAI_EMBED_LARGE))
 	if err != nil {
 		panic(err)
 	}

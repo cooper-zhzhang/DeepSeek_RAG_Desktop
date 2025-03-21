@@ -17,7 +17,7 @@ import (
 
 //IFileService针对一个文件的处理
 // DocumentService是一个dataset的概念
-//DocumentService 一个文档的集合，可以理解为dataset， 包含多个文件
+//DataSetService 一个文档的集合，可以理解为dataset， 包含多个文件
 
 type FileType int16
 
@@ -184,7 +184,7 @@ func (receiver *FileService) StoreDocs(ctx context.Context, docs []schema.Docume
 func (receiver *FileService) UseRetriever(ctx context.Context, prompt string, topK int) ([]schema.Document, error) {
 
 	optionsVector := []vectorstores.Option{
-		vectorstores.WithScoreThreshold(0.80),
+		vectorstores.WithScoreThreshold(0.70),
 	}
 
 	retriever := vectorstores.ToRetriever(GlobalQdrantStore, topK, optionsVector...)
