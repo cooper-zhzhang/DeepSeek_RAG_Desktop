@@ -19,7 +19,7 @@ func (receiver *CMD) Run() {
 		fmt.Println("请输入您的问题：>")
 		fmt.Scan(&content)
 		ctx = global.CreateLogContextByLogId(nil, global.NewLogId())
-		//agent.Chat(ctx) TODO:
+		//agent.ChatByChains(ctx) TODO:
 		err := chatService.Run(ctx, content)
 		if err != nil {
 			fmt.Println(err.Error())

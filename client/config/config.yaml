@@ -2,7 +2,7 @@ llm_service:
   url: "127.0.0.1"
   port: "11434"
 llm_context:
-  max_limit: 100
+  max_limit: 6
 log:
   log_level: "INFO"
 

@@ -9,7 +9,7 @@ import (
 	"github.com/tmc/langchaingo/schema"
 )
 
-func GetLLMCallBackHandler() callbacks.Handler {
+func GetDeepSeekLLMCallBackHandler() callbacks.Handler {
 	return &DeepSeekCallBacksHandler{}
 }
 
@@ -24,10 +24,10 @@ func (handler *DeepSeekCallBacksHandler) HandleLLMStart(ctx context.Context, pro
 	fmt.Println(prompts)
 }
 func (handler *DeepSeekCallBacksHandler) HandleLLMGenerateContentStart(ctx context.Context, ms []llms.MessageContent) {
-
+	fmt.Println(ms)
 }
 func (handler *DeepSeekCallBacksHandler) HandleLLMGenerateContentEnd(ctx context.Context, res *llms.ContentResponse) {
-
+	fmt.Println(res)
 }
 func (handler *DeepSeekCallBacksHandler) HandleLLMError(ctx context.Context, err error) {
 
@@ -37,7 +37,6 @@ func (handler *DeepSeekCallBacksHandler) HandleChainStart(ctx context.Context, i
 }
 func (handler *DeepSeekCallBacksHandler) HandleChainEnd(ctx context.Context, outputs map[string]any) {
 
-	//fmt.Println(outputs)
 	for k, v := range outputs {
 		if k != "text" {
 			continue
@@ -73,5 +72,74 @@ func (handler *DeepSeekCallBacksHandler) HandleRetrieverEnd(ctx context.Context,
 
 }
 func (handler *DeepSeekCallBacksHandler) HandleStreamingFunc(ctx context.Context, chunk []byte) {
+}
 
+func GetDeepSeekLLMStreamCallBackHandler(readChunk func(ctx context.Context, chunk []byte) error) callbacks.Handler {
+	return &DeepSeekStreamCallBacksHandler{
+		ReadChunk: readChunk,
+	}
+}
+
+type DeepSeekStreamCallBacksHandler struct {
+	callbacks.Handler
+	ReadChunk func(ctx context.Context, chunk []byte) error
+}
+
+func (handler *DeepSeekStreamCallBacksHandler) HandleText(ctx context.Context, text string) {
+	fmt.Println(text)
+}
+func (handler *DeepSeekStreamCallBacksHandler) HandleLLMStart(ctx context.Context, prompts []string) {
+	fmt.Println(prompts)
+}
+func (handler *DeepSeekStreamCallBacksHandler) HandleLLMGenerateContentStart(ctx context.Context, ms []llms.MessageContent) {
+	fmt.Println(ms)
+}
+func (handler *DeepSeekStreamCallBacksHandler) HandleLLMGenerateContentEnd(ctx context.Context, res *llms.ContentResponse) {
+	fmt.Println(res)
+}
+func (handler *DeepSeekStreamCallBacksHandler) HandleLLMError(ctx context.Context, err error) {
+
+}
+func (handler *DeepSeekStreamCallBacksHandler) HandleChainStart(ctx context.Context, inputs map[string]any) {
+
+}
+func (handler *DeepSeekStreamCallBacksHandler) HandleChainEnd(ctx context.Context, outputs map[string]any) {
+
+	//fmt.Println(outputs)
+	for k, v := range outputs {
+		if k != "text" {
+			continue
+		}
+		if str, ok := v.(string); ok {
+			outputs[k] = "AI:" + str
+		}
+	}
+
+}
+func (handler *DeepSeekStreamCallBacksHandler) HandleChainError(ctx context.Context, err error) {
+
+}
+func (handler *DeepSeekStreamCallBacksHandler) HandleToolStart(ctx context.Context, input string) {
+
+}
+func (handler *DeepSeekStreamCallBacksHandler) HandleToolEnd(ctx context.Context, output string) {
+
+}
+func (handler *DeepSeekStreamCallBacksHandler) HandleToolError(ctx context.Context, err error) {
+
+}
+func (handler *DeepSeekStreamCallBacksHandler) HandleAgentAction(ctx context.Context, action schema.AgentAction) {
+
+}
+func (handler *DeepSeekStreamCallBacksHandler) HandleAgentFinish(ctx context.Context, finish schema.AgentFinish) {
+
+}
+func (handler *DeepSeekStreamCallBacksHandler) HandleRetrieverStart(ctx context.Context, query string) {
+
+}
+func (handler *DeepSeekStreamCallBacksHandler) HandleRetrieverEnd(ctx context.Context, query string, documents []schema.Document) {
+
+}
+func (handler *DeepSeekStreamCallBacksHandler) HandleStreamingFunc(ctx context.Context, chunk []byte) {
+	_ = handler.ReadChunk(ctx, chunk)
 }

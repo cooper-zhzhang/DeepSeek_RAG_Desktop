@@ -31,6 +31,7 @@ type AgentService struct {
 	//这是一个对外的类，包含
 }
 
+// TODO: token过长进行裁切
 func NewAgentService() *AgentService {
 	return &AgentService{}
 }
@@ -110,7 +111,7 @@ func (receiver *AgentService) buildMessageHistory(ctx context.Context, docRetrie
 		mes := llms.SystemChatMessage{
 			Content: doc.PageContent,
 		}
-		history.AddMessage(ctx, mes)
+		_ = history.AddMessage(ctx, mes)
 	}
 
 	for i := len(message) - 1; i > 0; i-- {
@@ -133,19 +134,22 @@ func (receiver *AgentService) retrieved(input string) {
 
 }
 
-func (receiver *AgentService) convertHistory2ChatMessages(ctx context.Context, history *memory.ChatMessageHistory, input string) (messages []llms.MessageContent) {
+func (receiver *AgentService) convertHistory2ChatMessages(ctx context.Context, prompts, input string, history *memory.ChatMessageHistory) (messages []llms.MessageContent) {
 	if history == nil {
 		return
 	}
 
+	messages = append(messages, llms.MessageContent{
+		Role:  llms.ChatMessageTypeSystem,
+		Parts: []llms.ContentPart{llms.ContentPart(llms.TextContent{Text: prompts})},
+	})
+
 	hisMessages, _ := history.Messages(ctx)
 	for _, message := range hisMessages {
-		//if message.GetType() == llms.ChatMessageTypeHuman {
 		messages = append(messages, llms.MessageContent{
 			Role:  message.GetType(),
 			Parts: []llms.ContentPart{llms.ContentPart(llms.TextContent{Text: message.GetContent()})},
 		})
-		//}
 	}
 
 	if input != "" {
@@ -158,27 +162,27 @@ func (receiver *AgentService) convertHistory2ChatMessages(ctx context.Context, h
 	return
 }
 
-func (receiver *AgentService) ChatStream(ctx context.Context, input string, docRetrieved []schema.Document, readChunk func(ctx context.Context, chunk []byte) error) (err error) {
+func (receiver *AgentService) doChatByLLm(ctx context.Context, input string, docRetrieved []schema.Document,
+	readChunk func(ctx context.Context, chunk []byte) error) (content string, err error) {
 
 	llm := ollama_agent.GetLLMClient(ollama_agent.LLMName(receiver.AgentModel.LLMModelName))
 	if llm == nil {
 		err = errors.New("not found llm " + receiver.AgentModel.LLMModelName)
 		global.Slog.ErrorContext(ctx, "GetLLMClient failed", slog.Any("err", err))
-		return err
+		return
 	}
 
 	history, err := receiver.buildMessageHistory(ctx, docRetrieved)
 	if err != nil {
 		global.Slog.Error("buildMessageHistory failed", slog.Any("err", err))
-		return err
+		return
 	}
 
-	messages := receiver.convertHistory2ChatMessages(ctx, history, input)
-
+	messages := receiver.convertHistory2ChatMessages(ctx, receiver.AgentModel.Prompt, input, history)
 	resp, err := llm.GenerateContent(ctx, messages, llms.WithStreamingFunc(readChunk))
 	if err != nil {
 		global.Slog.ErrorContext(ctx, "GenerateContent failed", slog.Any("err", err))
-		return err
+		return
 	}
 
 	sb := strings.Builder{}
@@ -189,12 +193,29 @@ func (receiver *AgentService) ChatStream(ctx context.Context, input string, docR
 	err = receiver.RecordMessage(ctx, input, sb.String())
 	if err != nil {
 		global.Slog.ErrorContext(ctx, "RecordMessage failed", slog.Any("err", err))
+		return
+	}
+
+	return sb.String(), nil
+}
+
+func (receiver *AgentService) ChatStream(ctx context.Context, input string, docRetrieved []schema.Document,
+	readChunk func(ctx context.Context, chunk []byte) error) (err error) {
+
+	_, err = receiver.doChatByLLm(ctx, input, docRetrieved, readChunk)
+	if err != nil {
+		global.Slog.ErrorContext(ctx, "doChatByLLm failed", slog.Any("err", err))
 		return err
 	}
 
-	return nil
+	return
 }
+
 func (receiver *AgentService) Chat(ctx context.Context, input string, docRetrieved []schema.Document) (response string, err error) {
+
+	return receiver.doChatByLLm(ctx, input, docRetrieved, nil)
+}
+func (receiver *AgentService) ChatByChains(ctx context.Context, input string, docRetrieved []schema.Document) (response string, err error) {
 
 	history, err := receiver.buildMessageHistory(ctx, docRetrieved)
 	if err != nil {
@@ -215,7 +236,7 @@ func (receiver *AgentService) Chat(ctx context.Context, input string, docRetriev
 	llm := ollama_agent.GetLLMClient(ollama_agent.LLMName(receiver.AgentModel.LLMModelName))
 	executor := agents.NewExecutor(
 		agents.NewConversationalAgent(llm, nil,
-			agents.WithCallbacksHandler(ollama_agent.GetLLMCallBackHandler()),
+			agents.WithCallbacksHandler(ollama_agent.GetDeepSeekLLMCallBackHandler()),
 			agents.WithPrompt(Prompt)),
 		agents.WithMemory(conversation),
 	)
@@ -243,6 +264,59 @@ func (receiver *AgentService) Chat(ctx context.Context, input string, docRetriev
 	return response, nil
 }
 
+func (receiver *AgentService) ChatStreamByChains(ctx context.Context, input string,
+	docRetrieved []schema.Document, readChunk func(ctx context.Context, chunk []byte) error) (response string, err error) {
+
+	history, err := receiver.buildMessageHistory(ctx, docRetrieved)
+	if err != nil {
+		global.Slog.Error("buildMessageHistory failed", slog.Any("err", err))
+		return "", err
+	}
+	conversation := memory.NewConversationBuffer(memory.WithChatHistory(history))
+	// TODO: 放在 prompts文件夹下
+	Prompt := prompts.PromptTemplate{
+		Template:       receiver.AgentModel.Prompt + inn_prompts.DefaultPromptSuffix,
+		TemplateFormat: prompts.TemplateFormatGoTemplate,
+		InputVariables: []string{"input", "agent_scratchpad"},
+		PartialVariables: map[string]any{
+			"history": "",
+		},
+	}
+
+	llm := ollama_agent.GetLLMClient(ollama_agent.LLMName(receiver.AgentModel.LLMModelName))
+	/*	conversationAgent := agents.NewConversationalAgent(llm, nil,
+		agents.WithCallbacksHandler(ollama_agent.GetDeepSeekLLMStreamCallBackHandler(readChunk)),
+		agents.WithPrompt(Prompt),
+		agents.WithMemory(conversation))
+
+	conversationAgent.Plan()*/
+
+	executor := agents.NewExecutor(
+		agents.NewConversationalAgent(llm, nil,
+			agents.WithCallbacksHandler(ollama_agent.GetDeepSeekLLMStreamCallBackHandler(readChunk)),
+			agents.WithPrompt(Prompt)),
+
+		agents.WithMemory(conversation),
+	)
+
+	// 设置链调用选项
+	options := []chains.ChainCallOption{
+		chains.WithTemperature(0.8),
+	}
+	response, err = chains.Run(ctx, executor, input, options...)
+	if err != nil {
+		global.Slog.ErrorContext(ctx, "chains.Run failed", slog.Any("err", err))
+		return "", err
+	}
+
+	err = receiver.RecordMessage(ctx, input, response)
+	if err != nil {
+		global.Slog.ErrorContext(ctx, "RecordMessage failed", slog.Any("err", err))
+		return "", err
+	}
+
+	return response, nil
+}
 func (receiver *AgentService) RecordMessage(ctx context.Context, request, response string) error {
 	var messages []*model.Message
 	messages = append(messages, &model.Message{

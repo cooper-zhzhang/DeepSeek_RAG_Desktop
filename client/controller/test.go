@@ -56,10 +56,18 @@ func (receiver *TestConsole) RAG(ctx context.Context) {
 			return
 		}
 
+		if len(docs) > 0 {
+			docs = nil
+		}
+
 		err = agent.ChatStream(ctx, input, docs, func(ctx context.Context, chunk []byte) error {
 			fmt.Print(string(chunk))
 			return nil
 		})
+		/*_, err = agent.ChatStreamByChains(ctx, input, docs, func(ctx context.Context, chunk []byte) error {
+			fmt.Print(string(chunk))
+			return nil
+		})*/
 		if err != nil {
 			global.Slog.Error("GetAnswer failed", slog.Any("err", err))
 			return
