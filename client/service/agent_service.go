@@ -7,8 +7,10 @@ import (
 	inn_prompts "dp_client/service/prompts"
 	"dp_client/storage"
 	"dp_client/storage/model"
+	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/spf13/viper"
 
@@ -115,9 +117,9 @@ func (receiver *AgentService) buildMessageHistory(ctx context.Context, docRetrie
 		doc := message[i]
 		//目前deepseek只有 两种角色，human 和 ai
 		if doc.Role == string(model.RoleHuman) {
-			history.AddUserMessage(ctx, doc.Content)
+			_ = history.AddUserMessage(ctx, doc.Content)
 		} else {
-			history.AddAIMessage(ctx, doc.Content)
+			_ = history.AddAIMessage(ctx, doc.Content)
 		}
 	}
 
@@ -131,6 +133,67 @@ func (receiver *AgentService) retrieved(input string) {
 
 }
 
+func (receiver *AgentService) convertHistory2ChatMessages(ctx context.Context, history *memory.ChatMessageHistory, input string) (messages []llms.MessageContent) {
+	if history == nil {
+		return
+	}
+
+	hisMessages, _ := history.Messages(ctx)
+	for _, message := range hisMessages {
+		//if message.GetType() == llms.ChatMessageTypeHuman {
+		messages = append(messages, llms.MessageContent{
+			Role:  message.GetType(),
+			Parts: []llms.ContentPart{llms.ContentPart(llms.TextContent{Text: message.GetContent()})},
+		})
+		//}
+	}
+
+	if input != "" {
+		messages = append(messages, llms.MessageContent{
+			Role:  llms.ChatMessageTypeHuman,
+			Parts: []llms.ContentPart{llms.ContentPart(llms.TextContent{Text: input})},
+		})
+	}
+
+	return
+}
+
+func (receiver *AgentService) ChatStream(ctx context.Context, input string, docRetrieved []schema.Document, readChunk func(ctx context.Context, chunk []byte) error) (err error) {
+
+	llm := ollama_agent.GetLLMClient(ollama_agent.LLMName(receiver.AgentModel.LLMModelName))
+	if llm == nil {
+		err = errors.New("not found llm " + receiver.AgentModel.LLMModelName)
+		global.Slog.ErrorContext(ctx, "GetLLMClient failed", slog.Any("err", err))
+		return err
+	}
+
+	history, err := receiver.buildMessageHistory(ctx, docRetrieved)
+	if err != nil {
+		global.Slog.Error("buildMessageHistory failed", slog.Any("err", err))
+		return err
+	}
+
+	messages := receiver.convertHistory2ChatMessages(ctx, history, input)
+
+	resp, err := llm.GenerateContent(ctx, messages, llms.WithStreamingFunc(readChunk))
+	if err != nil {
+		global.Slog.ErrorContext(ctx, "GenerateContent failed", slog.Any("err", err))
+		return err
+	}
+
+	sb := strings.Builder{}
+	for _, choice := range resp.Choices {
+		sb.WriteString(choice.Content)
+	}
+
+	err = receiver.RecordMessage(ctx, input, sb.String())
+	if err != nil {
+		global.Slog.ErrorContext(ctx, "RecordMessage failed", slog.Any("err", err))
+		return err
+	}
+
+	return nil
+}
 func (receiver *AgentService) Chat(ctx context.Context, input string, docRetrieved []schema.Document) (response string, err error) {
 
 	history, err := receiver.buildMessageHistory(ctx, docRetrieved)

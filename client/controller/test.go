@@ -39,7 +39,7 @@ func (receiver *TestConsole) RAG(ctx context.Context) {
 	fileService, _ := document.NewFileService(ctx, document.TextFileType, "text.txt")
 	agent := service.NewAgentService()
 	err := agent.CreateAgent(ctx, global.MODEL_NAME,
-		"你扮演一个回答问题的机器人，使用很热情的语句回答问题,尽量使用中文", 10003)
+		"你扮演一个回答问题的机器人，使用很热情的语句回答问题,尽量使用中文", 10004)
 	if err != nil {
 		global.Slog.Error("CreateAgent failed", slog.Any("err", err))
 		return
@@ -56,12 +56,16 @@ func (receiver *TestConsole) RAG(ctx context.Context) {
 			return
 		}
 
-		result, err := agent.Chat(ctx, input, docs)
+		err = agent.ChatStream(ctx, input, docs, func(ctx context.Context, chunk []byte) error {
+			fmt.Print(string(chunk))
+			return nil
+		})
 		if err != nil {
 			global.Slog.Error("GetAnswer failed", slog.Any("err", err))
 			return
 		}
-		fmt.Println(result)
+
+		fmt.Println()
 	}
 
 }
