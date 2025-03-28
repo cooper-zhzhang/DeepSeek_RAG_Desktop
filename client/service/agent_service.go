@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"dp_client/global"
+	"dp_client/service/document"
 	"dp_client/service/ollama_agent"
 	inn_prompts "dp_client/service/prompts"
 	"dp_client/storage"
@@ -11,6 +12,8 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+
+	"github.com/tmc/langchaingo/vectorstores"
 
 	"github.com/spf13/viper"
 
@@ -134,7 +137,8 @@ func (receiver *AgentService) retrieved(input string) {
 
 }
 
-func (receiver *AgentService) convertHistory2ChatMessages(ctx context.Context, prompts, input string, history *memory.ChatMessageHistory) (messages []llms.MessageContent) {
+func (receiver *AgentService) convertHistory2ChatMessages(ctx context.Context, prompts, input string,
+	history *memory.ChatMessageHistory) (messages []llms.MessageContent) {
 	if history == nil {
 		return
 	}
@@ -262,6 +266,22 @@ func (receiver *AgentService) ChatByChains(ctx context.Context, input string, do
 	}
 
 	return response, nil
+}
+
+func (receiver *AgentService) ChatByRag(ctx context.Context, input string, docRetrieved []schema.Document) (response string, err error) {
+	// TODO:agent挂载 dataset
+	optionsVector := []vectorstores.Option{
+		vectorstores.WithScoreThreshold(0.70),
+	}
+
+	store, _ := document.GetQdrant(ctx, "xiyouji")
+	retriever := vectorstores.ToRetriever(store, 3, optionsVector...)
+
+	llm := ollama_agent.GetLLMClient(ollama_agent.LLMName(receiver.AgentModel.LLMModelName))
+
+	chain := chains.NewRetrievalQAFromLLM(llm, retriever)
+	response, err = chains.Run(ctx, chain, input)
+	return
 }
 
 func (receiver *AgentService) ChatStreamByChains(ctx context.Context, input string,

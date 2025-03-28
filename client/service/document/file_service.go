@@ -30,8 +30,8 @@ type IFileService interface {
 	OpenFile(ctx context.Context) error
 	CloseFile(ctx context.Context) error
 	SetSplitter(ctx context.Context, splitter *textsplitter.RecursiveCharacter)
-	StoreDocs(ctx context.Context, docs []schema.Document) error
-	UseRetriever(ctx context.Context, prompt string, topK int) ([]schema.Document, error)
+	StoreDocs(ctx context.Context, collectName string, docs []schema.Document) error
+	UseRetriever(ctx context.Context, collectName, prompt string, topK int) ([]schema.Document, error)
 }
 
 type FileService struct {
@@ -116,13 +116,13 @@ func (receiver *FileService) DoAllThing(ctx context.Context) (err error) {
 		global.Slog.ErrorContext(ctx, "TextToChunks failed", slog.Any("err", err))
 		return err
 	}
-	err = receiver.StoreDocs(ctx, receiver.SchemaDocs)
+	err = receiver.StoreDocs(ctx, "", receiver.SchemaDocs)
 	if err != nil {
 		global.Slog.ErrorContext(ctx, "StoreDocs failed", slog.Any("err", err))
 		return err
 	}
 
-	docs, err := receiver.UseRetriever(ctx, "小明干什么的", 10)
+	docs, err := receiver.UseRetriever(ctx, "", "小明干什么的", 10)
 	if err != nil {
 		global.Slog.ErrorContext(ctx, "useRetriever failed", slog.Any("err", err))
 		return err
@@ -170,28 +170,37 @@ func (receiver *TextFile) TextToChunks(ctx context.Context) ([]schema.Document, 
 	return docs, nil
 }
 
-func (receiver *FileService) StoreDocs(ctx context.Context, docs []schema.Document) error {
+func (receiver *FileService) StoreDocs(ctx context.Context, collectName string, docs []schema.Document) error {
 	if len(docs) <= 0 {
 		docs = receiver.SchemaDocs
 	}
-	if len(docs) > 0 {
-		_, err := GlobalQdrantStore.AddDocuments(ctx, docs)
-		if err != nil {
-			global.Slog.ErrorContext(ctx, "AddDocuments failed", slog.Any("err", err))
-			return err
-		}
+
+	if len(docs) <= 0 {
+		return nil
+	}
+	store, err := GetQdrant(ctx, collectName)
+	if err != nil {
+		global.Slog.ErrorContext(ctx, "GetQdrant failed", slog.Any("err", err))
+		return err
+	}
+
+	_, err = store.AddDocuments(ctx, docs)
+	if err != nil {
+		global.Slog.ErrorContext(ctx, "AddDocuments failed", slog.Any("err", err))
+		return err
 	}
 
 	return nil
 }
 
-func (receiver *FileService) UseRetriever(ctx context.Context, prompt string, topK int) ([]schema.Document, error) {
+func (receiver *FileService) UseRetriever(ctx context.Context, collectName string, prompt string, topK int) ([]schema.Document, error) {
 
 	optionsVector := []vectorstores.Option{
 		vectorstores.WithScoreThreshold(0.70),
 	}
 
-	retriever := vectorstores.ToRetriever(GlobalQdrantStore, topK, optionsVector...)
+	store, _ := GetQdrant(ctx, collectName)
+	retriever := vectorstores.ToRetriever(store, topK, optionsVector...)
 
 	doRetriever, err := retriever.GetRelevantDocuments(ctx, prompt)
 	if err != nil {

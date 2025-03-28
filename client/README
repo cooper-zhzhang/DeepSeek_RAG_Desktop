@@ -24,3 +24,33 @@ LangChainGo: 引入库
 
 使用 LangChainGo的样例
 https://blog.csdn.net/DEVELOPERAA/article/details/144817765
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+curl -X PUT http://localhost:6333/collections/xiyouji \
+-H 'Content-Type: application/json' \
+--data-raw '{
+    "vectors": {
+        "size": 1024,
+        "distance": "Dot"
+    }
+}'

@@ -23,7 +23,8 @@ func mysqlInit() {
 	if err != nil {
 		panic("failed to connect database")
 	}
-	err = db.AutoMigrate(&model.Agent{}, &model.Conversation{}, &model.Message{}, &model.Agent{})
+	err = db.AutoMigrate(&model.Agent{}, &model.Conversation{}, &model.Message{},
+		&model.Agent{}, &model.DatasetModel{}, &model.DatasetRelaFileModel{}, &model.FileModel{})
 	if err != nil {
 		panic("failed to migrate database")
 	}

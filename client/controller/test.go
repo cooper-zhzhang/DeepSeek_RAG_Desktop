@@ -36,10 +36,21 @@ func (receiver *TestConsole) CallByLLM(ctx context.Context) {
 
 func (receiver *TestConsole) RAG(ctx context.Context) {
 
-	fileService, _ := document.NewFileService(ctx, document.TextFileType, "text.txt")
+	fileService, err := document.NewFileService(ctx, document.TextFileType, "西游记.txt")
+	defer fileService.CloseFile(ctx)
+	/*_, err = fileService.TextToChunks(ctx)
+	if err != nil {
+		global.Slog.Error("TextToChunks failed", slog.Any("err", err))
+		return
+	}
+	err = fileService.StoreDocs(ctx, "xiyouji", nil)
+	if err != nil {
+		global.Slog.Error("StoreDocs failed", slog.Any("err", err))
+		return
+	}*/
 	agent := service.NewAgentService()
-	err := agent.CreateAgent(ctx, global.MODEL_NAME,
-		"你扮演一个回答问题的机器人，使用很热情的语句回答问题,尽量使用中文", 10004)
+	err = agent.CreateAgent(ctx, global.MODEL_NAME_1_5,
+		"你扮演一个回答问题的机器人，使用很热情的语句回答问题,尽量使用中文", 10007)
 	if err != nil {
 		global.Slog.Error("CreateAgent failed", slog.Any("err", err))
 		return
@@ -50,30 +61,14 @@ func (receiver *TestConsole) RAG(ctx context.Context) {
 		fmt.Println("请输入您的问题：>")
 		fmt.Scan(&input)
 		ctx = global.CreateLogContextByLogId(nil, global.NewLogId())
-		docs, err := fileService.UseRetriever(ctx, input, 10)
-		if err != nil {
-			global.Slog.Error("UseRetriever failed", slog.Any("err", err))
-			return
-		}
 
-		if len(docs) > 0 {
-			docs = nil
-		}
-
-		err = agent.ChatStream(ctx, input, docs, func(ctx context.Context, chunk []byte) error {
-			fmt.Print(string(chunk))
-			return nil
-		})
-		/*_, err = agent.ChatStreamByChains(ctx, input, docs, func(ctx context.Context, chunk []byte) error {
-			fmt.Print(string(chunk))
-			return nil
-		})*/
+		str, err := agent.ChatByRag(ctx, input, nil)
 		if err != nil {
 			global.Slog.Error("GetAnswer failed", slog.Any("err", err))
 			return
 		}
 
-		fmt.Println()
+		fmt.Println(str)
 	}
 
 }
