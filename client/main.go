@@ -11,6 +11,7 @@ func main() {
 	go func() {
 		log.Println(http.ListenAndServe(":6060", nil))
 	}()
-	obj := &controller.TestConsole{}
+	obj := controller.NewTestGUI()
 	obj.Run()
+
 }
